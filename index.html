@@ -107,6 +107,23 @@
   var esc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
   var rnd = function(a,b){ return a + Math.random()*(b-a); };
   function scroll(){ screen.scrollTop = screen.scrollHeight; }
+  /* ---- âm thanh gõ chữ (WebAudio) ---- */
+  var actx = null;
+  function getCtx(){
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch(e){ actx = null; }
+    return actx;
+  }
+  function tick(ch){
+    if (ch === ' ') return;
+    var a = getCtx(); if (!a) return;
+    var t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = 'square'; o.frequency.value = 900 + Math.random()*700;
+    g.gain.setValueAtTime(.05, t); g.gain.exponentialRampToValueAtTime(.001, t + .04);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + .045);
+  }
   function add(html, cls){
     var d = document.createElement('div'); d.className = 'line' + (cls ? ' '+cls : ''); d.innerHTML = html;
     screen.appendChild(d); scroll(); return d;
@@ -114,7 +131,7 @@
   async function typeCmd(cmd){
     var d = add('<span class="ps1">'+esc(PS)+'</span><span class="t"></span><span class="cur">&nbsp;</span>');
     var t = d.querySelector('.t');
-    for (var i=0;i<cmd.length;i++){ t.textContent += cmd[i]; scroll(); await sleep(30 + Math.random()*50); }
+    for (var i=0;i<cmd.length;i++){ t.textContent += cmd[i]; tick(cmd[i]); scroll(); await sleep(30 + Math.random()*50); }
     d.querySelector('.cur').remove(); await sleep(250);
   }
   async function progress(label){
@@ -320,6 +337,7 @@
   }
   var LCOL = ['#e74856','#16c60c','#f9f1a5','#ffffff'];
   function textEnd(){ return 7.2 + msgChars().length*.12 + .3; }
+  var textSnd = 0;
   function drawText(el){
     var chars = msgChars(), row = TROW, start = (COLS>>1) - (chars.length>>1), t0s = 7.2, li = 0;
     chars.forEach(function(ch,i){
@@ -327,6 +345,7 @@
       var a = clamp((el-(t0s+i*.12))/.2,0,1); if (a<=0) return;
       put(start+i, row, ch, LCOL[li%4], a); li++;
     });
+    if (li > textSnd){ tick('x'); textSnd = li; }
   }
 
   /* ---- điều ước dưới bánh ---- */
@@ -388,7 +407,7 @@
     rafId = requestAnimationFrame(tick);
   }
   /* ---- nhạc Happy Birthday (WebAudio, không cần file) ---- */
-  var actx = null, bdayGain = null, bdayTimer = 0;
+  var bdayGain = null, bdayTimer = 0;
   var BDAY = [[392,.75],[392,.25],[440,1],[392,1],[523.25,1],[493.88,2],
               [392,.75],[392,.25],[440,1],[392,1],[587.33,1],[523.25,2],
               [392,.75],[392,.25],[783.99,1],[659.25,1],[523.25,1],[493.88,1],[440,2],
@@ -401,8 +420,7 @@
   function playBirthday(){
     stopBirthday();
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
+      if (!getCtx()) return;
       var g = actx.createGain(); g.gain.value = .22; g.connect(actx.destination); bdayGain = g;
       var beat = .5, t = actx.currentTime + .15;
       BDAY.forEach(function(n){
@@ -417,6 +435,7 @@
     } catch(e){}
   }
   function runAnim(m, cb){
+    textSnd = 0;
     if (m === 'cake') playBirthday(); else stopBirthday();
     mode = m; onExit = cb || null; lit = true; blowT = -1; wished = false; wishText = ''; wishChars = []; wishIn.value = ''; wishBar.style.display = 'none'; bursts = []; lastBurst = 0; skipAdd = 0; frame = 0;
     hidePopup(); stage.style.display = 'block'; layout(); cakeSetup();
@@ -448,7 +467,7 @@
       if (run !== popRun) return;
       if (li >= pop.length) return;
       if (!line){ line = document.createElement('span'); line.className = 'l'; popBody.appendChild(line); }
-      line.textContent = pop[li].slice(0, ++ci);
+      line.textContent = pop[li].slice(0, ++ci); tick(pop[li][ci-1]);
       if (ci >= pop[li].length){ li++; ci = 0; line = null; setTimeout(step, 450); } else setTimeout(step, 32);
     })();
   }
@@ -647,7 +666,7 @@
     add('<span class="d">Chuẩn bị xong. Sắp có bất ngờ...</span>');
     await sleep(7000);
     var done = add(''), msg = 'Đã xong, có thể nhập sinhnhat để tiếp tục';   // chữ thuần, hiện từng chữ một
-    for (var mi=0; mi<msg.length; mi++){ done.textContent += msg[mi]; scroll(); await sleep(45 + Math.random()*40); }
+    for (var mi=0; mi<msg.length; mi++){ done.textContent += msg[mi]; tick(msg[mi]); scroll(); await sleep(45 + Math.random()*40); }
     await sleep(500);
     await waitFor(['sinhnhat'], null, 'sinhnhat');
     await sleep(700);
