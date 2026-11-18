@@ -116,7 +116,7 @@
     } catch(e){ actx = null; }
     return actx;
   }
-  function tick(ch){
+  function typeSfx(ch){
     if (ch === ' ') return;
     var a = getCtx(); if (!a) return;
     var t = a.currentTime, o = a.createOscillator(), g = a.createGain();
@@ -131,7 +131,7 @@
   async function typeCmd(cmd){
     var d = add('<span class="ps1">'+esc(PS)+'</span><span class="t"></span><span class="cur">&nbsp;</span>');
     var t = d.querySelector('.t');
-    for (var i=0;i<cmd.length;i++){ t.textContent += cmd[i]; tick(cmd[i]); scroll(); await sleep(30 + Math.random()*50); }
+    for (var i=0;i<cmd.length;i++){ t.textContent += cmd[i]; typeSfx(cmd[i]); scroll(); await sleep(30 + Math.random()*50); }
     d.querySelector('.cur').remove(); await sleep(250);
   }
   async function progress(label){
@@ -345,7 +345,7 @@
       var a = clamp((el-(t0s+i*.12))/.2,0,1); if (a<=0) return;
       put(start+i, row, ch, LCOL[li%4], a); li++;
     });
-    if (li > textSnd){ tick('x'); textSnd = li; }
+    if (li > textSnd){ typeSfx('x'); textSnd = li; }
   }
 
   /* ---- điều ước dưới bánh ---- */
@@ -478,7 +478,7 @@
       if (run !== popRun) return;
       if (li >= pop.length) return;
       if (!line){ line = document.createElement('span'); line.className = 'l'; popBody.appendChild(line); }
-      line.textContent = pop[li].slice(0, ++ci); tick(pop[li][ci-1]);
+      line.textContent = pop[li].slice(0, ++ci); typeSfx(pop[li][ci-1]);
       if (ci >= pop[li].length){ li++; ci = 0; line = null; setTimeout(step, 450); } else setTimeout(step, 32);
     })();
   }
@@ -677,7 +677,7 @@
     add('<span class="d">Chuẩn bị xong. Sắp có bất ngờ...</span>');
     await sleep(7000);
     var done = add(''), msg = 'Đã xong, có thể nhập sinhnhat để tiếp tục';   // chữ thuần, hiện từng chữ một
-    for (var mi=0; mi<msg.length; mi++){ done.textContent += msg[mi]; tick(msg[mi]); scroll(); await sleep(45 + Math.random()*40); }
+    for (var mi=0; mi<msg.length; mi++){ done.textContent += msg[mi]; typeSfx(msg[mi]); scroll(); await sleep(45 + Math.random()*40); }
     await sleep(500);
     await waitFor(['sinhnhat'], null, 'sinhnhat');
     await sleep(700);
