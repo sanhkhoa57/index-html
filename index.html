@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows PowerShell</title>
+<style>
+  :root { --bg:#0c0c0c; --fg:#cccccc; --green:#16c60c; --yellow:#f9f1a5; --red:#e74856; --cyan:#61d6d6; --dim:#767676; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:linear-gradient(135deg,#1b3a5c,#0d1b2e 60%,#16283f); }
+  body { display:flex; align-items:center; justify-content:center; padding:16px;
+         font-family:"Cascadia Mono","Cascadia Code",Consolas,"Lucida Console",ui-monospace,monospace; }
+  .win { width:min(980px,100%); height:min(680px,calc(100vh - 32px)); background:var(--bg); border:1px solid #3a3a3a;
+         border-radius:8px; box-shadow:0 24px 70px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; position:relative; z-index:1; }
+  .tabbar { display:flex; align-items:flex-end; height:40px; background:#1f1f1f; padding:6px 0 0 8px; user-select:none; font-family:"Segoe UI",system-ui,sans-serif; flex:none; }
+  .tab { display:flex; align-items:center; gap:8px; height:34px; padding:0 8px 0 12px; background:var(--bg); color:#fff; font-size:12px; border-radius:8px 8px 0 0; min-width:190px; max-width:260px; }
+  .tab .ttl { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tab .x { width:22px; height:22px; display:grid; place-items:center; border-radius:4px; color:#bbb; font-size:11px; }
+  .tab .x:hover { background:#2d2d2d; }
+  .tbtn { width:34px; height:34px; display:grid; place-items:center; color:#ccc; font-size:15px; border-radius:6px; }
+  .tbtn:hover { background:#2b2b2b; }
+  .spacer { flex:1; }
+  .wc { display:flex; align-self:flex-start; height:32px; }
+  .wc span { width:46px; height:32px; display:grid; place-items:center; color:#ddd; font-size:12px; }
+  .wc span:hover { background:#333; } .wc span:last-child:hover { background:#c42b1c; color:#fff; }
+  .body { position:relative; flex:1; min-height:0; }
+  #screen { position:absolute; inset:0; overflow-y:auto; padding:6px 10px 10px; color:var(--fg); font-size:14.5px; line-height:1.28; cursor:text; }
+  #screen::-webkit-scrollbar { width:14px; } #screen::-webkit-scrollbar-track { background:#0c0c0c; }
+  #screen::-webkit-scrollbar-thumb { background:#4d4d4d; border:3px solid #0c0c0c; border-radius:7px; }
+  ::selection { background:#264f78; }
+  .line { white-space:pre-wrap; word-break:break-word; min-height:1.28em; }
+  .g{color:var(--green)} .y{color:var(--yellow)} .r{color:var(--red)} .c{color:var(--cyan)} .d{color:var(--dim)} .m{color:#f08be0}
+  .prompt { display:flex; flex-wrap:wrap; }
+  .ps1 { white-space:pre; }
+  #input { background:transparent; border:0; outline:0; color:var(--fg); font:inherit; flex:1; min-width:100px; caret-color:#fff; caret-shape:block; padding:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px; }
+  .chip { background:#1f1f1f; color:var(--cyan); border:1px solid #3a3a3a; border-radius:4px; padding:4px 10px; font-family:"Cascadia Mono",Consolas,monospace; font-size:12.5px; cursor:pointer; }
+  .chip { pointer-events:none; user-select:none; cursor:default; }
+  canvas#fx { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  @keyframes blink { 50% { opacity:0 } }
+  .cur { display:inline-block; width:.6em; background:#fff; animation:blink 1.1s steps(1) infinite; }
+  /* màn hình animation ASCII (giống ứng dụng TUI chạy toàn màn hình) */
+  #stage { position:absolute; inset:0; background:#05070f; display:none; z-index:3; cursor:default; }
+  #sc { display:block; width:100%; height:100%; }
+  .sbtn { position:absolute; font-family:"Cascadia Mono",Consolas,monospace; font-size:12px; color:#c9d1d9; background:rgba(20,26,40,.8);
+          border:1px solid #3a4560; border-radius:4px; padding:5px 10px; cursor:pointer; }
+  .sbtn:hover { border-color:#61d6d6; color:#fff; }
+  .sbtn.static { pointer-events:none; cursor:default; user-select:none; }
+  #exitbtn { top:10px; right:12px; }
+  #blowbtn { bottom:10px; left:50%; transform:translateX(-50%); display:none; }
+  #popup { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%) scale(.94); width:min(560px,calc(100% - 28px)); display:none; opacity:0; transition:opacity .35s, transform .35s;
+           background:rgba(10,14,26,.96); border:1px solid #61d6d6; border-radius:8px; box-shadow:0 0 0 1px #05070f, 0 12px 50px rgba(0,0,0,.7), 0 0 40px rgba(97,214,214,.18);
+           font-family:"Cascadia Mono",Consolas,monospace; z-index:4; cursor:default; }
+  #popup.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  #popup .ph { display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid #26314a; color:#6b7a99; font-size:11.5px; }
+  #popup .pb { padding:16px 18px 10px; font-size:14px; line-height:1.7; color:#e6edf3; min-height:180px; }
+  #popup .pb .l { display:block; min-height:1.7em; }
+  #popup .pb .l:nth-child(2) { color:#f9f1a5; }
+  #popup .pb .l:nth-child(3) { color:#f08be0; }
+  #popup .pb .l:nth-child(4) { color:#61d6d6; }
+  #popup .pb .l:nth-child(5) { color:#ff9f43; }
+  #popup .pf { padding:0 14px 14px; text-align:right; }
+  #popup .pf .sbtn { position:static; display:inline-block; }
+  #wishbar { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:min(600px,calc(100% - 24px)); display:none; gap:8px; align-items:center;
+             background:rgba(12,16,28,.92); border:1px solid #3a4560; border-radius:6px; padding:6px 8px; font-family:"Cascadia Mono",Consolas,monospace; font-size:12.5px; color:#c9d1d9; }
+  #wishbar label { white-space:nowrap; color:#f9f1a5; }
+  #wishin { flex:1; min-width:0; background:#05070f; border:1px solid #3a4560; border-radius:4px; color:#fff; font:inherit; padding:5px 8px; outline:0; }
+  #wishin:focus { border-color:#61d6d6; }
+  #wishbar .sbtn { position:static; padding:5px 10px; white-space:nowrap; }
+  #hint { position:absolute; left:12px; top:10px; font-size:11px; color:#5b667a; font-family:"Cascadia Mono",Consolas,monospace; pointer-events:none; }
+  @media (max-width:520px){ .tab{min-width:0} .wc span{width:34px} #screen{font-size:12.5px} }
+  @media (prefers-reduced-motion: reduce) { .cur { animation:none } }
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="tabbar">
+    <div class="tab">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3" fill="#2671be"/><path d="M4 4.5l4 3.5-4 3.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 11.5h3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="ttl">Windows PowerShell</span><span class="x">✕</span>
+    </div>
+    <div class="tbtn">+</div><div class="tbtn" style="font-size:11px">⌵</div>
+    <div class="spacer"></div>
+    <div class="wc"><span>&#8212;</span><span>&#9744;</span><span>&#10005;</span></div>
+  </div>
+  <div class="body">
+    <div id="screen" aria-live="polite"></div>
+    <div id="stage">
+      <canvas id="sc"></canvas>
+      <div id="hint"></div>
+      <div class="sbtn static" id="exitbtn">Thoát [Esc]</div>
+      <div id="popup" role="dialog" aria-label="Lời nhắn"><div class="ph"><span>&gt;_</span><span>message.txt</span></div><div class="pb" id="popbody"></div><div class="pf"><div class="sbtn static" id="popclose">Đóng [Esc]</div></div></div>
+      <div id="wishbar"><label for="wishin">Điều ước của Nguyên:</label><input id="wishin" type="text" maxlength="60" autocomplete="off" placeholder="gõ điều ước rồi nhấn Enter"><div class="sbtn static" id="wishgo">Gửi [Enter]</div></div>
+      <div class="sbtn static" id="blowbtn">Thổi nến [Space]</div>
+    </div>
+  </div>
+</div>
+<canvas id="fx"></canvas>
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var USER = 'NguyenSanhKhoa', NAME = 'Nguyên';
+  var PS = 'PS C:\\Users\\' + USER + '> ';
+  var fast = false;
+  var sleep = function(ms){ return new Promise(function(r){ setTimeout(r, fast ? Math.min(ms,8) : ms); }); };
+  var esc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var rnd = function(a,b){ return a + Math.random()*(b-a); };
+  function scroll(){ screen.scrollTop = screen.scrollHeight; }
+  function add(html, cls){
+    var d = document.createElement('div'); d.className = 'line' + (cls ? ' '+cls : ''); d.innerHTML = html;
+    screen.appendChild(d); scroll(); return d;
+  }
+  async function typeCmd(cmd){
+    var d = add('<span class="ps1">'+esc(PS)+'</span><span class="t"></span><span class="cur">&nbsp;</span>');
+    var t = d.querySelector('.t');
+    for (var i=0;i<cmd.length;i++){ t.textContent += cmd[i]; scroll(); await sleep(30 + Math.random()*50); }
+    d.querySelector('.cur').remove(); await sleep(250);
+  }
+  async function progress(label){
+    var d = add('');
+    for (var i=0;i<=30;i++){
+      d.innerHTML = '<span class="y">'+esc(label.padEnd(30))+'</span>  [<span class="g">'+'█'.repeat(i)+'</span><span class="d">'+'░'.repeat(30-i)+'</span>] '+Math.round(i/30*100)+'%';
+      scroll();
+      var pct = i/30;
+      await sleep(pct>0.55 && pct<0.7 ? 260 : (pct>0.9 ? 320 : 95 + Math.random()*90));   // chậm dần, khựng lại ở đoạn cuối cho hồi hộp
+      if (i===29) await sleep(900);
+    }
+    await sleep(450);
+  }
+
+  /* =================== ANIMATION ASCII (canvas) =================== */
+  var stage = document.getElementById('stage'), sc = document.getElementById('sc'), sx = sc.getContext('2d');
+  var hintEl = document.getElementById('hint'), blowBtn = document.getElementById('blowbtn'), exitBtn = document.getElementById('exitbtn');
+  var TROW = 30, WROW = 33, BG = '#05070f', FONT = 13, CW = 8, CH = 13, COLS = 100, ROWS = 40, GROUND = 28, TH = 26, TW = 38;
+  var active = false, mode = 'cake', rafId = 0, t0 = 0, skipAdd = 0, frame = 0, onExit = null;
+  var wished = false, wishText = '', wishChars = [], wishBar = document.getElementById('wishbar'), wishIn = document.getElementById('wishin');
+  var lit = true, blowT = -1, stars = [], snow = [], bursts = [], lastBurst = 0;
+  var NOISE = '@%#&Wvxo^+=-:*~';
+  var DONE_AT = 12.5;
+
+  function hs(c,r){ var h = Math.imul(c|0, 374761393) ^ Math.imul(r|0, 668265263); h = Math.imul(h ^ (h>>>13), 1274126177); return (h ^ (h>>>16)) >>> 0; }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function noiseCh(h,f){ return NOISE[(h + (((h>>4)&1) ? (f>>2) : 0)) % NOISE.length]; }
+  var easeOut = function(p){ return 1-Math.pow(1-p,3); };
+
+  function layout(){
+    var r = stage.getBoundingClientRect(); if (!r.width) return;
+    var dpr = window.devicePixelRatio || 1;
+    sc.width = Math.round(r.width*dpr); sc.height = Math.round(r.height*dpr);
+    sx.setTransform(dpr,0,0,dpr,0,0);
+    FONT = r.width < 520 ? 10 : 13;
+    sx.font = FONT+'px "Cascadia Mono",Consolas,"Courier New",monospace'; sx.textBaseline = 'top';
+    CW = sx.measureText('M').width; CH = FONT;
+    COLS = Math.floor(r.width/CW); ROWS = Math.floor(r.height/CH);
+    GROUND = Math.floor(ROWS*0.72); TROW = Math.floor(ROWS*0.82); WROW = Math.min(ROWS-5, TROW+3);
+    TH = GROUND - Math.floor(ROWS*0.1);
+    TW = Math.min(Math.floor(TH*1.45), Math.floor(COLS*0.5));
+    stars = []; var n = Math.floor(COLS*ROWS*0.035);
+    for (var i=0;i<n;i++) stars.push({ c:(Math.random()*COLS)|0, r:(Math.random()*ROWS)|0, ph:rnd(0,6.28), sp:rnd(.6,2.4), ch:'.+*·+'[(Math.random()*5)|0], b:Math.random()<.2 });
+    snow = [];
+    for (var j=0;j<Math.floor(COLS*0.9);j++) snow.push({ x:rnd(0,COLS), y:rnd(0,ROWS), vy:rnd(.03,.14), ph:rnd(0,6.28), ch:Math.random()<.5?'*':'.' });
+  }
+  function put(c,r,ch,col,a){
+    if (c<0||r<0||c>=COLS||r>=ROWS) return;
+    var x = c*CW, y = r*CH;
+    sx.globalAlpha = 1; sx.fillStyle = BG; sx.fillRect(x,y,CW,CH);
+    sx.globalAlpha = a==null?1:a; sx.fillStyle = col; sx.fillText(ch,x,y);
+  }
+  function glyph(c,r,ch,col,a){ // không xóa nền: dùng cho sao, tuyết, hạt pháo hoa
+    if (c<0||r<0||c>=COLS||r>=ROWS) return;
+    sx.globalAlpha = a==null?1:a; sx.fillStyle = col; sx.fillText(ch,c*CW,r*CH);
+  }
+  function elapsed(){ return (performance.now()-t0)/1000 + skipAdd; }
+
+  /* ---- nền: sao, tuyết, mặt đất ---- */
+  function drawBackdrop(el){
+    stars.forEach(function(s){
+      var a = .25 + .75*Math.abs(Math.sin(el*s.sp + s.ph));
+      glyph(s.c, s.r, s.ch, s.b ? '#cfe1ff' : '#8fa3c9', a);
+    });
+    snow.forEach(function(p){
+      p.y += p.vy; p.x += Math.sin(el*1.2 + p.ph)*0.03;
+      if (p.y > ROWS){ p.y = -1; p.x = rnd(0,COLS); }
+      glyph(Math.round(p.x), Math.floor(p.y), p.ch, '#ffffff', .85);
+    });
+    for (var r=GROUND; r<ROWS; r++){
+      if ((r-GROUND)%2) continue;
+      for (var c=0;c<COLS;c+=2) glyph(c, r, '-', '#46566e', .3);
+    }
+  }
+
+  /* ---- cây thông (giống video) ---- */
+  var GREENS = ['#16c60c','#0f9d1a','#3fb950','#1c7a28'];
+  function drawTree(el,f){
+    var cx = COLS>>1, g = GROUND, p = clamp(el/6,0,1);
+    var sxp = easeOut(Math.min(1,p*1.7)), syp = easeOut(p);
+    var H = Math.round(TH*syp), cap = p<1 ? 1 : clamp(1-(el-6)/1.4,0,1);
+    var built = el > 6;
+    var bands = [.2,.38,.56,.74,.9];
+    for (var k=0;k<H;k++){
+      var y = g - H + k;
+      var hw = (k+1)/Math.max(H,1) * (TW*sxp/2) + ((hs(0,y)%3)-1)*0.8;
+      var c0 = Math.ceil(cx-hw), c1 = Math.floor(cx+hw);
+      for (var c=c0;c<=c1;c++){
+        var h = hs(c,y); if (h%100 < 7) continue;
+        var col = GREENS[h%4];
+        if (k < 4 && (h%100) < cap*100) col = '#ffffff';
+        if (el > 4.2){
+          for (var b=0;b<bands.length;b++){
+            if (el > 4.2+b*.35 && Math.abs(y-(g-Math.round(bands[b]*TH))) <= 1 && h%4) col = '#f2c230';
+          }
+        }
+        if (built){
+          var v = (h + (f>>4)) % 23;
+          if (v===0) col = '#f2c230'; else if (v===1) col = '#e74856'; else if (v===2) col = '#ffffff';
+          if (h%97 < 4) col = '#e74856';
+        }
+        put(c,y,noiseCh(h,f),col);
+      }
+    }
+    for (var t=0;t<3;t++) for (var tc=cx-1;tc<=cx+1;tc++) put(tc,g+t,noiseCh(hs(tc,g+t),f),'#7a2a2a',.8);
+    if (el > 5.4){ // ngôi sao
+      var sp = clamp((el-5.4)/.5,0,1);
+      var top = g - H;
+      var rows = ['  ###  ','#@@@@@#',' @@@@@ ','  @@@  '];
+      rows.forEach(function(rw,i){ for (var q=0;q<rw.length;q++) if (rw[q]!==' ') put(cx-3+q, top-3+i, rw[q], '#f2c230', sp); });
+      if (sp>=1){ var rc = ['/','|','\\','|','/']; for (var q2=0;q2<5;q2++) if (((f>>3)+q2)%3) glyph(cx-2+q2, top-5-(q2%2), rc[q2], '#f9f1a5', .7); }
+    }
+  }
+
+  /* ---- bánh sinh nhật (cùng phong cách) ---- */
+  var cakeTiers, candleCols = [], cakeTopY = 0, cakeRows = 0;
+  function cakeSetup(){
+    cakeTiers = [
+      { w:Math.floor(TW*.95), h:Math.round(TH*.30), cols:['#ff7eb6','#e0559b','#ff9ccc'] },
+      { w:Math.floor(TW*.68), h:Math.round(TH*.26), cols:['#ffe9c2','#f4c58d','#fff3da'] },
+      { w:Math.floor(TW*.42), h:Math.round(TH*.22), cols:['#61d6d6','#3a96dd','#9be8f0'] }
+    ];
+    cakeRows = 0; cakeTiers.forEach(function(t){ cakeRows += t.h; });
+    cakeTopY = GROUND - cakeRows;
+  }
+  function drawCake(el,f){
+    var cx = COLS>>1, g = GROUND, p = clamp(el/6,0,1), R = Math.round(cakeRows*easeOut(p));
+    var front = g - R, built = el > 6;
+    for (var c=cx-Math.floor(cakeTiers[0].w/2)-4; c<=cx+Math.floor(cakeTiers[0].w/2)+4; c++){ put(c,g,'=','#8a94a6',.8); put(c,g+1,'_','#5b667a',.6); }
+    var cum = 0;
+    cakeTiers.forEach(function(t,ti){
+      var yb = g - cum, yt = yb - t.h; cum += t.h;
+      var c0 = cx - Math.floor(t.w/2), c1 = cx + Math.floor(t.w/2);
+      for (var y=yt; y<yb; y++){
+        if (y < front) continue;
+        for (var c=c0;c<=c1;c++){
+          var h = hs(c,y); if (h%100 < 4) continue;
+          var col = t.cols[h%3];
+          if (p<1 && y-front < 2 && (h%100)<70) col = '#ffffff';
+          if (y===yt) col = (h%2) ? '#ffffff' : '#fdf3f8';               // kem phủ
+          else if (y===yt+1 && ((c-c0)%5<2)) col = '#fdf3f8';             // kem chảy
+          if (built){
+            var v = (h + (f>>4)) % 19;
+            if (v===0) col = '#f2c230'; else if (v===1) col = '#ffffff';
+            if (y===yt+Math.floor(t.h/2) && (c%3===0)) { col = '#f2c230'; }
+          }
+          var ch = (y===yt) ? '@%'[h%2] : noiseCh(h,f);
+          put(c,y,ch,col);
+        }
+      }
+    });
+    candleCols = []; var spc = Math.max(3, Math.floor(cakeTiers[2].w/6));
+    for (var i=-2;i<=2;i++) candleCols.push(cx + i*spc);
+    if (el > 6.3){
+      var cp = clamp((el-6.3)/.5,0,1);
+      candleCols.forEach(function(cc,i){
+        for (var y=1;y<=3;y++) put(cc, cakeTopY-y, (y%2)?'|':'#', ['#61d6d6','#ffffff','#ff7eb6'][i%3], cp);
+        if (lit && cp>=1){
+          var fl = ((f>>2)+i)%3;
+          put(cc, cakeTopY-4, fl===0?'(':(fl===1?')':'|'), '#f9f1a5');
+          put(cc, cakeTopY-5, ((f>>3)+i)%2 ? '`' : "'", '#ff9f43');
+          glyph(cc-1, cakeTopY-4, '.', '#f2c230', .25); glyph(cc+1, cakeTopY-4, '.', '#f2c230', .25);
+        }
+      });
+    }
+    if (!lit && blowT>=0){
+      var age = el - blowT;
+      candleCols.forEach(function(cc,i){
+        for (var s=0;s<5;s++){
+          var a = age - s*.18; if (a<0 || a>1.6) continue;
+          glyph(cc + Math.round(Math.sin(a*4+i+s)*1.5), cakeTopY - 4 - Math.round(a*7), '~', '#9aa4b5', 1-a/1.6);
+        }
+      });
+    }
+  }
+
+  /* ---- quà ---- */
+  var GIFT = ['#d62839','#2a5bd7','#16a34a','#e8b923'];
+  function drawGifts(el){
+    var cx = COLS>>1, g = GROUND;
+    var dcs = mode==='tree' ? [-.55,-.2,.2,.55,-.38] : [-.75,-.6,.6,.75,.66];
+    dcs.forEach(function(dc,i){
+      var t = clamp((el-(5.2+i*.4))/.35,0,1); if (t<=0) return;
+      var w = 7, h = 4+(i%3), c0 = cx + Math.round(dc*TW) - 3, bottom = g+2;
+      var visible = Math.ceil(h*t), col = GIFT[i%4], rib = (i%4===3) ? '#ffffff' : '#f2c230';
+      for (var r=0;r<visible;r++){
+        var y = bottom - r;
+        for (var c=0;c<w;c++){
+          var isRib = (c===3);
+          put(c0+c, y, isRib ? '@' : '#', isRib ? rib : col);
+        }
+      }
+      if (t>=1){ put(c0+2, bottom-h, '(', rib); put(c0+3, bottom-h, '@', rib); put(c0+4, bottom-h, ')', rib); }
+    });
+  }
+
+  /* ---- chữ chạy ---- */
+  function msgChars(){
+    var m = mode==='tree' ? ['MERRY','CHRISTMAS','2026'] : ['HAPPY','BIRTHDAY',NAME.toUpperCase()];
+    var out = [];
+    m.forEach(function(w,wi){ for (var i=0;i<w.length;i++){ out.push(w[i]); out.push(' '); } if (wi<m.length-1){ out.push(' '); out.push(' '); } });
+    return out;
+  }
+  var LCOL = ['#e74856','#16c60c','#f9f1a5','#ffffff'];
+  function textEnd(){ return 7.2 + msgChars().length*.12 + .3; }
+  function drawText(el){
+    var chars = msgChars(), row = TROW, start = (COLS>>1) - (chars.length>>1), t0s = 7.2, li = 0;
+    chars.forEach(function(ch,i){
+      if (ch===' ') return;
+      var a = clamp((el-(t0s+i*.12))/.2,0,1); if (a<=0) return;
+      put(start+i, row, ch, LCOL[li%4], a); li++;
+    });
+  }
+
+  /* ---- điều ước dưới bánh ---- */
+  function setWish(t){
+    wished = true; wishText = t.trim().slice(0,60); wishChars = [];
+    if (!wishText) return;
+    var s = '" '+wishText+' "', start = (COLS>>1) - (s.length>>1);
+    for (var i=0;i<s.length;i++) if (s[i]!==' ') wishChars.push({ ch:s[i], i:i, n:s.length, vy:rnd(3,7), dx:rnd(-1.2,1.2) });
+    wishAt = elapsed();
+  }
+  var wishAt = 0;
+  var WCOL = ['#f9f1a5','#61d6d6','#f08be0','#ffffff'];
+  function drawWish(el){
+    wishChars.forEach(function(w,k){
+      w.c = (COLS>>1) - (w.n>>1) + w.i; w.r = WROW;
+      if (lit){
+        var a = clamp((el-wishAt-w.i*.04)/.15,0,1); if (a>0) put(w.c, w.r, w.ch, WCOL[k%4], a);
+      } else {
+        var age = el - blowT - .4; if (age<0){ put(w.c,w.r,w.ch,WCOL[k%4]); return; }
+        var life = 3.2; if (age>life) return;
+        glyph(Math.round(w.c + w.dx*age), Math.round(w.r - w.vy*age), w.ch, WCOL[k%4], 1-age/life);
+      }
+    });
+  }
+
+  /* ---- pháo hoa ASCII sau khi thổi nến ---- */
+  function drawBursts(el){
+    if (!lit && blowT>=0 && el-blowT > .4 && el-blowT < 7.4 && el-lastBurst > .5){
+      lastBurst = el;
+      var bx = rnd(COLS*.12,COLS*.88), by = rnd(ROWS*.1,ROWS*.45), col = ['#f08be0','#f9f1a5','#61d6d6','#16c60c','#ff9f43','#ffffff'][(Math.random()*6)|0], ps = [];
+      for (var i=0;i<46;i++){ var a = rnd(0,6.28), s = rnd(.3,1.5); ps.push({ x:bx, y:by, vx:Math.cos(a)*s*1.8, vy:Math.sin(a)*s, life:rnd(26,48), max:48 }); }
+      bursts.push({ ps:ps, col:col });
+    }
+    for (var b=bursts.length-1;b>=0;b--){
+      var B = bursts[b], alive = 0;
+      B.ps.forEach(function(p){
+        if (p.life<=0) return; alive++;
+        p.life--; p.x += p.vx*.5; p.y += p.vy*.5; p.vy += .03; p.vx *= .985;
+        var ratio = p.life/p.max;
+        glyph(Math.round(p.x), Math.round(p.y), ratio>.6?'*':(ratio>.3?'+':'.'), B.col, clamp(ratio*1.4,0,1));
+      });
+      if (!alive) bursts.splice(b,1);
+    }
+  }
+
+  function tick(){
+    if (!active) return;
+    var el = elapsed(); frame++;
+    sx.globalAlpha = 1; sx.fillStyle = BG; sx.fillRect(0,0,sc.width,sc.height);
+    drawBackdrop(el);
+    if (mode==='tree') drawTree(el,frame); else drawCake(el,frame);
+    drawGifts(el); drawText(el); drawWish(el); drawBursts(el);
+    if (el > textEnd()) hintEl.textContent = mode==='cake' && lit ? (wished ? 'ước xong rồi thì thổi nến nhé' : 'viết điều ước của Nguyên bên dưới') : 'nhấn Esc để thoát';
+    var cakeReady = mode==='cake' && lit && el>textEnd();
+    var showWish = cakeReady && !wished;
+    if (showWish && wishBar.style.display !== 'flex'){ wishBar.style.display = 'flex'; wishIn.focus(); }
+    else if (!showWish) wishBar.style.display = 'none';
+    blowBtn.style.display = (cakeReady && wished) ? 'block' : 'none';
+    rafId = requestAnimationFrame(tick);
+  }
+  function runAnim(m, cb){
+    mode = m; onExit = cb || null; lit = true; blowT = -1; wished = false; wishText = ''; wishChars = []; wishIn.value = ''; wishBar.style.display = 'none'; bursts = []; lastBurst = 0; skipAdd = 0; frame = 0;
+    hidePopup(); stage.style.display = 'block'; layout(); cakeSetup();
+    hintEl.textContent = '';
+    t0 = performance.now(); active = true; cancelAnimationFrame(rafId); rafId = requestAnimationFrame(tick);
+  }
+  function exitAnim(){
+    if (!active) return; active = false; cancelAnimationFrame(rafId); hidePopup();
+    stage.style.display = 'none'; blowBtn.style.display = 'none'; wishBar.style.display = 'none';
+    if (wishText) add('<span class="y">Điều ước của '+esc(NAME)+':</span> "'+esc(wishText)+'"');
+    scroll();
+    var cb = onExit; onExit = null; if (cb) cb();
+  }
+  function stageAction(){
+    var el = elapsed();
+    if (el < textEnd()){ skipAdd += textEnd() - el; return; }
+    if (mode==='cake' && lit && wished) blowCandles();
+  }
+  var POP = ['Sanh Khoa không thể biến điều ước của Nguyên thành sự thật','Nhưng ông trời và nỗ lực của Nguyên thì có','Chúc Bri ngày càng may mắn trong công việc nhé!'];
+  var popEl = document.getElementById('popup'), popBody = document.getElementById('popbody'), popTimer = 0, popRun = 0;
+  function showPopup(){
+    if (!active) return;
+    popBody.innerHTML = ''; popEl.style.display = 'block'; void popEl.offsetWidth; popEl.classList.add('show');
+    var pop = POP.slice();
+    pop.push(wishText ? 'Điều ước "'+wishText+'" của Bri sẽ thành hiện thật ở một tương lai không xa!' : 'Điều ước của Bri sẽ thành hiện thật ở một tương lai không xa!');
+    pop.push('祝 Nguyên 生日快乐，万事如意！ (tui dùng gg dịch :"))');
+    var run = ++popRun, li = 0, ci = 0, line = null;
+    (function step(){
+      if (run !== popRun) return;
+      if (li >= pop.length) return;
+      if (!line){ line = document.createElement('span'); line.className = 'l'; popBody.appendChild(line); }
+      line.textContent = pop[li].slice(0, ++ci);
+      if (ci >= pop[li].length){ li++; ci = 0; line = null; setTimeout(step, 450); } else setTimeout(step, 32);
+    })();
+  }
+  function hidePopup(){ popRun++; clearTimeout(popTimer); popEl.classList.remove('show'); popEl.style.display = 'none'; }
+  function blowCandles(){
+    if (!lit) return; lit = false; blowT = elapsed(); confetti(170);
+    setTimeout(function(){ if (active) confetti(120); }, 2500);
+    setTimeout(function(){ if (active) confetti(120); }, 5000);
+    clearTimeout(popTimer); popTimer = setTimeout(showPopup, 7800);
+  }
+
+  wishIn.addEventListener('blur', function(){ setTimeout(function(){ if (active && wishBar.style.display==='flex' && !wished) wishIn.focus(); }, 0); });
+  wishIn.addEventListener('keydown', function(e){ e.stopPropagation(); if (e.key==='Enter'){ e.preventDefault(); setWish(wishIn.value); } });
+  document.addEventListener('keydown', function(e){
+    if (!active || e.target === wishIn) return;
+    if (e.key==='Escape' || e.key==='q' || e.key==='Q' || e.key==='Enter'){ e.preventDefault(); if (popEl.style.display==='block') hidePopup(); else exitAnim(); }
+    else if (e.key===' '){ e.preventDefault(); stageAction(); }
+  });
+  addEventListener('resize', function(){ if (active){ layout(); cakeSetup(); } resizeFx(); });
+
+  /* =================== confetti / pháo hoa (lớp phủ) =================== */
+  var cv = document.getElementById('fx'), ctx = cv.getContext('2d'), W, H, parts = [], rockets = [], running = false;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function resizeFx(){ var r = window.devicePixelRatio||1; cv.width = innerWidth*r; cv.height = innerHeight*r; ctx.setTransform(r,0,0,r,0,0); W=innerWidth; H=innerHeight; }
+  resizeFx();
+  var COLORS = ['#f08be0','#f9f1a5','#61d6d6','#16c60c','#ffffff','#ff9f43','#3b78ff','#e74856'];
+  function confetti(n){
+    n = reduce ? Math.min(n,40) : n;
+    for (var i=0;i<n;i++){
+      var left = i%2===0;
+      parts.push({ k:'c', x: left?0:W, y: H*0.85, vx:(left?1:-1)*rnd(4,13), vy:-rnd(8,18), g:.28, w:rnd(5,10), h:rnd(3,6),
+        a:rnd(0,6.28), va:rnd(-.3,.3), col:COLORS[(Math.random()*COLORS.length)|0], life:rnd(180,300) });
+    }
+    loop();
+  }
+  function burst(x,y){
+    var col = COLORS[(Math.random()*COLORS.length)|0], n = reduce ? 20 : 70;
+    for (var i=0;i<n;i++){
+      var a = rnd(0,6.28), s = rnd(1,6.5);
+      parts.push({ k:'s', x:x, y:y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, g:.07, r:rnd(1.2,2.6), col:Math.random()<.2?'#fff':col, life:rnd(50,90), max:90 });
+    }
+  }
+  function fireworks(count){
+    var i = 0;
+    var t = setInterval(function(){
+      rockets.push({ x:rnd(W*.15,W*.85), y:H, ty:rnd(H*.12,H*.45), vy:-rnd(9,13) });
+      if(++i >= count) clearInterval(t);
+    }, 330);
+    loop();
+  }
+  function loop(){ if(running) return; running = true; requestAnimationFrame(ftick); }
+  function ftick(){
+    ctx.clearRect(0,0,W,H);
+    for (var i=rockets.length-1;i>=0;i--){
+      var r = rockets[i]; r.y += r.vy; r.vy *= .985;
+      ctx.fillStyle = '#ffd37a'; ctx.fillRect(r.x, r.y, 2, 8);
+      if (r.y <= r.ty || r.vy > -2){ burst(r.x, r.y); rockets.splice(i,1); }
+    }
+    for (var j=parts.length-1;j>=0;j--){
+      var p = parts[j]; p.life--; p.x += p.vx; p.y += p.vy; p.vy += p.g;
+      if (p.k==='c'){
+        p.vx *= .985; p.a += p.va;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle = p.col; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+        if (p.y > H+20) p.life = 0;
+      } else {
+        p.vx *= .98; ctx.globalAlpha = Math.max(0,p.life/p.max); ctx.fillStyle = p.col;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.28); ctx.fill(); ctx.globalAlpha = 1;
+      }
+      if (p.life <= 0) parts.splice(j,1);
+    }
+    if (parts.length || rockets.length) requestAnimationFrame(ftick);
+    else { running = false; ctx.clearRect(0,0,W,H); }
+  }
+
+  /* =================== lệnh trong PowerShell =================== */
+  var WISHES = [
+    'Chúc '+NAME+' tuổi mới ít deadline, nhiều ngày nghỉ.',
+    'Chúc '+NAME+' ngủ đủ giấc, ăn ngon, và không bao giờ gặp bug lúc 5 giờ chiều thứ Sáu.',
+    'Chúc '+NAME+' code gì cũng chạy ngay lần đầu (nếu không thì đã có git revert).',
+    'Chúc '+NAME+' có thật nhiều người để cùng cười, và vài người để cùng im lặng cho thoải mái.',
+    'Chúc '+NAME+' một năm mới đáng nhớ hơn năm cũ.'
+  ];
+  var wishIdx = 0;
+  function playThen(m){ runAnim(m, function(){ mkPrompt(); }); return 'noprompt'; }
+  var cmds = {
+    'help': function(){
+      add('Các lệnh có sẵn:');
+      add('  <span class="y">banh</span>         chạy lại animation bánh sinh nhật (thổi nến ở cuối)');
+      add('  <span class="y">cay-thong</span>    animation cây thông như trong video');
+      add('  <span class="y">phao-hoa</span>     bắn pháo hoa');
+      add('  <span class="y">confetti</span>     tung giấy màu');
+      add('  <span class="y">loi-chuc</span>     nhận một lời chúc');
+      add('  <span class="y">dir</span>          liệt kê thư mục');
+      add('  <span class="y">whoami</span>       bạn là ai');
+      add('  <span class="y">cls</span>          xóa màn hình');
+    },
+    'banh': function(){ return playThen('cake'); },
+    'cay-thong': function(){ return playThen('tree'); },
+    'phao-hoa': function(){ add('<span class="m">Bùm! Bùm! Bùm!</span>'); fireworks(12); },
+    'confetti': function(){ add('<span class="y">Tung giấy màu...</span>'); confetti(180); },
+    'loi-chuc': function(){ add('<span class="g">"</span>'+esc(WISHES[wishIdx++ % WISHES.length])+'<span class="g">"</span>'); },
+    'whoami': function(){ add('desktop-khoa\\'+USER.toLowerCase()); },
+    'dir': function(){
+      add('');
+      add('    Directory: C:\\Users\\'+USER+'\\Desktop');
+      add('');
+      add('Mode                 LastWriteTime         Length Name');
+      add('----                 -------------         ------ ----');
+      add('d-----        18/11/2026  11:11 AM                qua-sinh-nhat');
+      add('-a----        18/11/2026  11:11 AM           1337 banh-sinh-nhat.txt');
+      add('-a----        18/11/2026  11:11 AM            365 loi-chuc.txt');
+      add('-a----        18/11/2026  11:11 AM          42069 phao-hoa.exe');
+      add('');
+    },
+    'cls': function(){ screen.innerHTML=''; mkPrompt(); return 'noprompt'; }
+  };
+  var ALIAS = { 'sinhnhat':'banh','thoi-nen':'banh','thoinen':'banh','cake':'banh','tree':'cay-thong','caythong':'cay-thong','phaohoa':'phao-hoa','fireworks':'phao-hoa',
+                'loichuc':'loi-chuc','wish':'loi-chuc','?':'help','get-help':'help','ls':'dir','clear':'cls','clear-host':'cls','get-childitem':'dir' };
+
+  function notFound(raw, quiet){
+    var w = raw.split(/\s+/)[0];
+    var d = add(''); d.className = 'line r';
+    d.textContent = w+' : The term \''+w+'\' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.\n'+
+      'At line:1 char:1\n+ '+raw+'\n+ '+'~'.repeat(Math.max(raw.length,1))+'\n    + CategoryInfo          : ObjectNotFound: ('+w+':String) [], CommandNotFoundException\n    + FullyQualifiedErrorId : CommandNotFoundException\n';
+    if (!quiet) add('<span class="d">Gõ</span> <span class="y">help</span> <span class="d">để xem danh sách lệnh.</span>');
+  }
+
+  var inputEl;
+  function mkChips(list){
+    var d = document.createElement('div'); d.className = 'chips';
+    (list || ['banh','cay-thong','phao-hoa','confetti','loi-chuc','help']).forEach(function(c){
+      var b = document.createElement('span'); b.className = 'chip'; b.textContent = c;
+      d.appendChild(b);
+    });
+    screen.appendChild(d); return d;
+  }
+  var curPS = PS, waiter = null;
+  function mkPrompt(ps){
+    var d = document.createElement('div'); d.className = 'line prompt';
+    curPS = ps || PS;
+    d.innerHTML = '<span class="ps1">'+esc(curPS)+'</span><input id="input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Nhập lệnh PowerShell">';
+    screen.appendChild(d); inputEl = d.querySelector('input');
+    inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+    scroll(); inputEl.focus({preventScroll:true});
+  }
+  function submit(){
+    var typed = inputEl.value, raw = typed.trim();
+    inputEl.parentNode.innerHTML = '<span class="ps1">'+esc(curPS)+'</span>'+esc(typed);
+    inputEl = null;
+    if (waiter){ var fn = waiter; waiter = null; fn(raw); return; }
+    if (raw){
+      var key = raw.toLowerCase(), c = ALIAS[key] || key, out;
+      if (cmds[c]) out = cmds[c](); else notFound(raw);
+      if (out === 'noprompt') return;
+    }
+    mkPrompt();
+  }
+  screen.addEventListener('click', function(){ if(inputEl && !(window.getSelection && String(getSelection()))) inputEl.focus({preventScroll:true}); });
+
+  /* =================== kịch bản mở đầu =================== */
+  /* chờ người dùng gõ đúng lệnh (giống cài npx/npm) */
+  function waitFor(matches, prefix, hintCmd){
+    return new Promise(function(resolve){
+      var fails = 0, chips = null;
+      (function ask(){
+        mkPrompt(prefix);
+        waiter = function(raw){
+          if (matches.indexOf(raw.toLowerCase()) > -1){ if (chips) chips.remove(); return resolve(raw); }
+          if (raw) notFound(raw, true);
+          if (++fails >= 2 && hintCmd) add('<span class="d">Gợi ý: gõ</span> <span class="y">'+esc(hintCmd)+'</span> <span class="d">rồi nhấn Enter.</span>');
+          ask();
+        };
+      })();
+    });
+  }
+  async function intro(){
+    add('Windows PowerShell'); add('Copyright (C) Microsoft Corporation. All rights reserved.'); add('');
+    add('Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows'); add('');
+    await sleep(600);
+    await waitFor(['npx chuc-mung-sinh-nhat'], null, 'npx chuc-mung-sinh-nhat');
+    await sleep(700);
+    add('Need to install the following packages:');
+    add('chuc-mung-sinh-nhat@1.0.0');
+    await sleep(500);
+    await waitFor(['y','yes',''], 'Ok to proceed? (y) ');
+    await sleep(600);
+    add('<span class="d">npm http fetch GET 200 https://registry.npmjs.org/chuc-mung-sinh-nhat 312ms</span>'); await sleep(450);
+    add('<span class="d">npm http fetch GET 200 https://registry.npmjs.org/banh-kem 98ms</span>'); await sleep(350);
+    add('<span class="d">npm http fetch GET 200 https://registry.npmjs.org/phao-hoa 141ms</span>'); await sleep(600);
+    await progress('Installing chuc-mung-sinh-nhat');
+    add(''); add('added 4 packages in 4s'); add('');
+    await sleep(900);
+    await progress('Loading 365 ngay ky niem');
+    await progress('Wrapping present       ');
+    await progress('Lighting candles       ');
+    add('<span class="d">Chuẩn bị xong. Sắp có bất ngờ...</span>');
+    await sleep(7000);
+    var done = add(''), msg = 'Đã xong, có thể nhập sinhnhat để tiếp tục';   // chữ thuần, hiện từng chữ một
+    for (var mi=0; mi<msg.length; mi++){ done.textContent += msg[mi]; scroll(); await sleep(45 + Math.random()*40); }
+    await sleep(500);
+    await waitFor(['sinhnhat'], null, 'sinhnhat');
+    await sleep(700);
+    runAnim('cake', async function(){
+      add('');
+      add('<span class="g">Hoàn tất.</span> Chúc mừng sinh nhật '+esc(NAME)+'!');
+      add('<span class="d">Gõ một trong các lệnh bên dưới để xem tiếp. Thử</span> <span class="y">banh</span> <span class="d">để xem lại, hoặc</span> <span class="y">cay-thong</span><span class="d">.</span>');
+      mkChips(); mkPrompt();
+    });
+  }
+  intro();
+})();
+</script>
+</body>
+</html>
