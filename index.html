@@ -387,14 +387,44 @@
     blowBtn.style.display = (cakeReady && wished) ? 'block' : 'none';
     rafId = requestAnimationFrame(tick);
   }
+  /* ---- nhạc Happy Birthday (WebAudio, không cần file) ---- */
+  var actx = null, bdayGain = null, bdayTimer = 0;
+  var BDAY = [[392,.75],[392,.25],[440,1],[392,1],[523.25,1],[493.88,2],
+              [392,.75],[392,.25],[440,1],[392,1],[587.33,1],[523.25,2],
+              [392,.75],[392,.25],[783.99,1],[659.25,1],[523.25,1],[493.88,1],[440,2],
+              [698.46,.75],[698.46,.25],[659.25,1],[523.25,1],[587.33,1],[523.25,2]];
+  function stopBirthday(){
+    clearTimeout(bdayTimer);
+    if (bdayGain && actx){ try { bdayGain.gain.cancelScheduledValues(actx.currentTime); bdayGain.gain.setTargetAtTime(0, actx.currentTime, .05); } catch(e){} }
+    bdayGain = null;
+  }
+  function playBirthday(){
+    stopBirthday();
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      var g = actx.createGain(); g.gain.value = .22; g.connect(actx.destination); bdayGain = g;
+      var beat = .5, t = actx.currentTime + .15;
+      BDAY.forEach(function(n){
+        var o = actx.createOscillator(), e = actx.createGain(), d = n[1]*beat;
+        o.type = 'triangle'; o.frequency.value = n[0];
+        e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(1, t+.03);
+        e.gain.exponentialRampToValueAtTime(.001, t + d*.95);
+        o.connect(e); e.connect(g); o.start(t); o.stop(t + d);
+        t += d;
+      });
+      bdayTimer = setTimeout(function(){ if (active && mode==='cake') playBirthday(); }, (t - actx.currentTime + 1.2)*1000);
+    } catch(e){}
+  }
   function runAnim(m, cb){
+    if (m === 'cake') playBirthday(); else stopBirthday();
     mode = m; onExit = cb || null; lit = true; blowT = -1; wished = false; wishText = ''; wishChars = []; wishIn.value = ''; wishBar.style.display = 'none'; bursts = []; lastBurst = 0; skipAdd = 0; frame = 0;
     hidePopup(); stage.style.display = 'block'; layout(); cakeSetup();
     hintEl.textContent = '';
     t0 = performance.now(); active = true; cancelAnimationFrame(rafId); rafId = requestAnimationFrame(tick);
   }
   function exitAnim(){
-    if (!active) return; active = false; cancelAnimationFrame(rafId); hidePopup();
+    if (!active) return; active = false; cancelAnimationFrame(rafId); hidePopup(); stopBirthday();
     stage.style.display = 'none'; blowBtn.style.display = 'none'; wishBar.style.display = 'none';
     if (wishText) add('<span class="y">Điều ước của '+esc(NAME)+':</span> "'+esc(wishText)+'"');
     scroll();
